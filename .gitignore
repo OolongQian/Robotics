@@ -1,6 +1,6 @@
 /devel
 /build
-/log
+/logs
 .catkin_tools
 .idea
 cmake-build-debug

@@ -1,3 +1,6 @@
 [submodule "src/Handeye-Calibration-ROS"]
 	path = src/Handeye-Calibration-ROS
 	url = https://github.com/OolongQian/Handeye-Calibration-ROS
+[submodule "src/ur_modern_driver"]
+	path = src/ur_modern_driver
+	url = https://github.com/OolongQian/ur_modern_driver
