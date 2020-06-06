@@ -2,3 +2,5 @@
 /build
 /log
 .catkin_tools
+.idea
+cmake-build-debug
