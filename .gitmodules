@@ -7,3 +7,9 @@
 [submodule "src/universal_robot"]
 	path = src/universal_robot
 	url = https://github.com/OolongQian/universal_robot
+[submodule "mmdetection"]
+	path = mmdetection
+	url = https://github.com/OolongQian/mmdetection
+[submodule "DenseFusion"]
+	path = DenseFusion
+	url = https://github.com/OolongQian/DenseFusion
