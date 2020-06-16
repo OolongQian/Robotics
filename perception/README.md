@@ -42,3 +42,9 @@ mmdetection 1.*版本适用于pyTorch 1.1-1.4版本，而2.0版本适用于pyTor
 关键在于为我们的训练任务编写一个config文件，本教程以configs/mask_rcnn_r50_fpn_1x.py为backbone，将它修改为configs/ycb_mask_rcnn_r50_fpn_1x.py，注意要将config中的data_root变量调整为Custom_YCB_Video_Dataset的路径位置，其中默认工作路径在Robotics/perception。
 
 最终，我在perception文件夹下创建launch_ycb_train.sh和launch_ycb_test.sh，在launch_ycb_train.sh中可以制定gpu数量。其他使用细节请参照mmdetection的教程。
+
+### 使用mmdetection high-level API对新图片进行目标检测与分割
+在perception目录下创建MmdForExternalImages.py，其中指定了我们的configs/ycb_mask_rcnn_r50_fpn_1x.py，以及mmdetection_work_dirs下面的checkpoints。
+
+MmdForExternalImages.py的运行需要指定external_images文件夹的路径，其中存放了需要进行detection的外部图片，默认路径在Robotics/perception/external_images。
+

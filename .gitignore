@@ -6,3 +6,5 @@
 cmake-build-debug
 datasets
 mmdetection_work_dirs
+external_images
+external_outputs
