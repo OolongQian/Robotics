@@ -59,22 +59,27 @@ ycb_trainval_idSet = imageIds2idSet(ycb_trainval_imageInfos)
 # use the first image info as an example. 
 
 import os
-import matplotlib.image as mp
 import matplotlib.pyplot as plt
+from PIL import Image
+
+def getImageBasePath(imgInfo):
+	basePath = os.getcwd()
+	ycbPath = os.path.join(basePath, config.YCB_dataset_path)
+	basePath = os.path.join(ycbPath, "data", imgInfo["folder"], imgInfo["name"])
+	return basePath
 
 
 def getImageColorPath(imgInfo):
 	"""get rgb image file name/path"""
-	
-	def getImageBasePath(imgInfo):
-		basePath = os.getcwd()
-		ycbPath = os.path.join(basePath, config.YCB_dataset_path)
-		basePath = os.path.join(ycbPath, "data", imgInfo["folder"], imgInfo["name"])
-		return basePath
-	
 	basePath = getImageBasePath(imgInfo)
 	folderPath, filename = os.path.split(basePath)
 	return os.path.join(folderPath, filename + "-color.png")
+
+
+def getImageDepthPath(imgInfo):
+	basePath = getImageBasePath(imgInfo)
+	folderPath, filename = os.path.split(basePath)
+	return os.path.join(folderPath, filename + "-depth.png")
 
 
 def plotImage(img):
@@ -86,14 +91,20 @@ def plotImage(img):
 # - Custom_YCB_Video_Dataset
 #     - annotations.
 #     - images. 
-def saveImageToCustomYCB(info, img):
+def saveImageToCustomYCB(info, img2save, is_depth):
 	"""need to create directory in advance."""
 	base_path = os.getcwd()
 	customYcbPath = os.path.join(base_path, config.custom_output_path)
 	# typical coco image name has 12 decimals.
-	filename = "".join(["0" for _ in range(12 - len(str(info["cocoId"])))]) + str(info["cocoId"]) + ".jpg"
-	filename = os.path.join(customYcbPath, "images", filename)
-	mp.imsave(filename, img)
+	filename = "".join(["0" for _ in range(12 - len(str(info["cocoId"])))]) + str(info["cocoId"]) + ".png"
+	if is_depth:
+		filename = os.path.join(customYcbPath, "depths", filename)
+	else:
+		filename = os.path.join(customYcbPath, "images", filename)
+	img2save.save(filename)
+	#print(img2save.shape)
+	#cv2.imwrite(filename, img2save)
+	#mp.imsave(filename, img2save). For depth file, it is (height, width) without color channel, use cv2 to write, use PIL to read. 
 
 
 # construct custom /images folder.
@@ -103,12 +114,17 @@ from tqdm import tqdm
 def constructImagesFolder(numLimit=-1):
 	with tqdm(total=len(ycb_trainval_imageInfos)) as pbar:
 		for i, info in enumerate(ycb_trainval_imageInfos):
-			pngPathSample = getImageColorPath(info)
-			img = mp.imread(pngPathSample)
-			saveImageToCustomYCB(info, img)
+			colorPath = getImageColorPath(info)
+			depPath = getImageDepthPath(info)
+			#img = cv2.imread(colorPath)
+			#dep = cv2.imread(depPath)
+			img = Image.open(colorPath) 
+			dep = Image.open(depPath)
+			saveImageToCustomYCB(info, img, is_depth=False)
+			saveImageToCustomYCB(info, dep, is_depth=True)
 			pbar.update(1)
 			if i == numLimit:
 				break
 
 
-constructImagesFolder()
+constructImagesFolder(5)

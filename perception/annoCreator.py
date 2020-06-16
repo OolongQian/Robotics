@@ -85,7 +85,7 @@ def getImageColorPath(imgInfo):
 
 
 def imageId2imageName(imgId):
-	return "".join(["0" for _ in range(12 - len(str(imgId)))]) + str(imgId) + ".jpg"
+	return "".join(["0" for _ in range(12 - len(str(imgId)))]) + str(imgId) + ".png"
 
 
 ### this code block is used to play with depth, segLabel, data...
@@ -180,7 +180,6 @@ print("the superimposed segmentation looks fairly nice.")
 #     functions. 
 
 import numpy as np
-from pycocotools.mask import encode, decode
 
 # for info in ycb_trainval_imageInfos:
 # 	imgPath = getImageColorPath(info)
@@ -276,7 +275,7 @@ with tqdm(total=len(ycb_trainval_imageInfos)) as pbar:
 from tqdm import tqdm
 import json
 import os
-from pycocotools.mask import encode, area
+from pycocotools.mask import encode, decode, area
 
 
 def dumpJsontoFolder(filename, dataset: dict):
@@ -341,7 +340,7 @@ def constructAnnotationsFolder(filename, subsetInfos, numLimit=-1):
 				segMask[seg == segVal] = 1
 				segMask = np.asfortranarray(segMask)
 				rle = encode(segMask)
-				# byte and string are handled differently in python 3. 
+				# byte and string are handled differently in python 3.
 				# decode bytes to string, then dump to json. 
 				rle['counts'] = rle['counts'].decode('ascii')
 				annoAnn["segmentation"] = rle

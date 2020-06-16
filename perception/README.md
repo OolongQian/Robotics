@@ -46,5 +46,13 @@ mmdetection 1.*版本适用于pyTorch 1.1-1.4版本，而2.0版本适用于pyTor
 ### 使用mmdetection high-level API对新图片进行目标检测与分割
 在perception目录下创建MmdForExternalImages.py，其中指定了我们的configs/ycb_mask_rcnn_r50_fpn_1x.py，以及mmdetection_work_dirs下面的checkpoints。
 
-MmdForExternalImages.py的运行需要指定external_images文件夹的路径，其中存放了需要进行detection的外部图片，默认路径在Robotics/perception/external_images。
+mmdForExternalImages.py的运行需要指定external_inputs文件夹的路径，其中存放了需要进行detection的外部图片，默认路径在Robotics/perception/external_images。
 
+### 使用mmdetection high-level API的结果作为DenseFusion inference的输入
+接下来，创建denseFusionOnExternalImages.py，我们将mmdetection封装成函数，来让DenseFusion调用。
+
+注意按照DenseFusion README的教程添加pretrained checkpoints.
+
+该python文件会读取perception/external_inputs的文件，调用mmdetection给出bounding box和segmentation mask，存放在external_outputs/mmd_result中。
+
+随后再使用训练好的denseFusion模型进行inference，将6D pose以及相关meta信息存放在df_outputs中。
