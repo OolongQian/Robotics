@@ -10,9 +10,6 @@
 [submodule "mmdetection"]
 	path = mmdetection
 	url = https://github.com/OolongQian/mmdetection
-[submodule "DenseFusion"]
-	path = DenseFusion
-	url = https://github.com/OolongQian/DenseFusion
 [submodule "cocoapi"]
 	path = cocoapi
 	url = https://github.com/OolongQian/cocoapi
