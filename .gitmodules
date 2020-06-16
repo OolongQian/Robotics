@@ -7,3 +7,12 @@
 [submodule "src/universal_robot"]
 	path = src/universal_robot
 	url = https://github.com/OolongQian/universal_robot
+[submodule "perception/mmdetection"]
+	path = perception/mmdetection
+	url = https://github.com/OolongQian/mmdetection
+[submodule "perception/DenseFusion"]
+	path = perception/DenseFusion
+	url = https://github.com/OolongQian/DenseFusion
+[submodule "perception/cocoapi"]
+	path = perception/cocoapi
+	url = https://github.com/OolongQian/cocoapi
