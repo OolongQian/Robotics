@@ -4,3 +4,4 @@
 .catkin_tools
 .idea
 cmake-build-debug
+datasets
