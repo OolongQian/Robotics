@@ -5,3 +5,4 @@
 .idea
 cmake-build-debug
 datasets
+mmdetection_work_dirs
