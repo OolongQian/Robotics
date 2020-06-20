@@ -16,3 +16,6 @@
 [submodule "perception/cocoapi"]
 	path = perception/cocoapi
 	url = https://github.com/OolongQian/cocoapi
+[submodule "src/moveit_python"]
+	path = src/moveit_python
+	url = https://github.com/OolongQian/moveit_python
