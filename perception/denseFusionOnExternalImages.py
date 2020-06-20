@@ -14,7 +14,7 @@ from pycocotools.mask import decode
 from torch.autograd import Variable
 from tqdm import tqdm
 
-sys.path.append(os.path.join(os.getcwd(), "DenseFusion"))
+sys.path.append(os.path.join(sys.path[0], "DenseFusion"))
 from lib.network import PoseNet, PoseRefineNet
 from lib.transformations import quaternion_matrix, quaternion_from_matrix
 
@@ -23,6 +23,9 @@ The major modification is that, the data input to DenseFusion model changes from
 	to the output of mmdetection. """
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--ur_perception_ros_path', type=str, help="inside ros package, package/data.")
+parser.add_argument('--perception_repos_path', type=str, help="under which there is DenseFusion")
+
 parser.add_argument('--external_inputs_path', type=str, default='external_inputs', help='external images root dir')
 parser.add_argument('--mmd_output_result_path', type=str, default='external_outputs/mmd_result',
                     help='mmdetection external images root dir')
@@ -39,8 +42,15 @@ parser.add_argument('--refine_model', type=str,
                     help='resume PoseRefineNet model')
 config = parser.parse_args()
 
-mmd_results = mmdInferenceOnExternalImages(config.external_inputs_path, config.mmd_output_result_path,
-                                           config.mmd_config, config.mmd_checkpoint)
+# create absolute paths out of these relative path. 
+external_inputs_path = os.path.join(config.ur_perception_ros_path, config.external_inputs_path)
+
+external_input_images_path = os.path.join(external_inputs_path, "images")
+mmd_output_result_path = os.path.join(config.ur_perception_ros_path, config.mmd_output_result_path)
+mmd_config = os.path.join(config.perception_repos_path, config.mmd_config)
+mmd_checkpoint = os.path.join(config.perception_repos_path, config.mmd_checkpoint)
+
+mmd_results = mmdInferenceOnExternalImages(external_input_images_path, mmd_output_result_path, mmd_config, mmd_checkpoint)
 
 # NOTE : assume images are (480 [height], 640 [width])
 norm = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -48,10 +58,10 @@ border_list = [-1, 40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480, 520
 xmap = np.array([[j for i in range(640)] for j in range(480)])
 ymap = np.array([[i for i in range(640)] for j in range(480)])
 # TODO : please specify camera intrinsics!
-cam_cx = 312.9869
-cam_cy = 241.3109
-cam_fx = 1066.778
-cam_fy = 1067.487
+cam_cx = 317.017
+cam_cy = 241.722
+cam_fx = 615.747
+cam_fy = 616.041
 cam_scale = 10000.0
 num_obj = 21
 img_width = 480
@@ -63,8 +73,7 @@ bs = 1
 
 # NOTE : specify dense fusion toolbox and outputs.
 # TODO : put it in args.
-ycb_toolbox_dir = 'DenseFusion/YCB_Video_toolbox'
-df_output_dir = 'external_outputs/df_outputs'
+df_output_dir = os.path.join(config.ur_perception_ros_path, 'external_outputs/df_outputs')
 result_wo_refine_dir = os.path.join(df_output_dir, 'df_wo_refine_result')
 result_refine_dir = os.path.join(df_output_dir, 'df_iterative_result')
 
@@ -73,18 +82,18 @@ if not os.path.exists(result_wo_refine_dir):
 if not os.path.exists(result_refine_dir):
 	os.makedirs(result_refine_dir)
 
+model_checkpoint_path = os.path.join(config.perception_repos_path, config.model)
 estimator = PoseNet(num_points=num_points, num_obj=num_obj)
 estimator.cuda()
-estimator.load_state_dict(torch.load(config.model))
+estimator.load_state_dict(torch.load(model_checkpoint_path))
 estimator.eval()
 
+refiner_checkpoint_path = os.path.join(config.perception_repos_path, config.refine_model)
 refiner = PoseRefineNet(num_points=num_points, num_obj=num_obj)
 refiner.cuda()
-refiner.load_state_dict(torch.load(config.refine_model))
+refiner.load_state_dict(torch.load(refiner_checkpoint_path))
 refiner.eval()
 
-base_path = os.getcwd()
-external_inputs_path = os.path.join(base_path, config.external_inputs_path)
 images = os.listdir(os.path.join(external_inputs_path, "images"))
 
 
@@ -179,8 +188,9 @@ with tqdm(total=len(images)) as pbar:
 					mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))
 					mask_label = decode(segm).astype(np.bool)
 					mask = mask_label * mask_depth
-					
+
 					choose = mask[rmin:rmax, cmin:cmax].flatten().nonzero()[0]
+					print("len choose is ", len(choose))
 					if len(choose) > num_points:
 						c_mask = np.zeros(len(choose), dtype=int)
 						c_mask[:num_points] = 1
@@ -227,7 +237,7 @@ with tqdm(total=len(images)) as pbar:
 					my_r = pred_r[0][which_max[0]].view(-1).cpu().data.numpy()
 					my_t = (points + pred_t)[which_max[0]].view(-1).cpu().data.numpy()
 					my_pred = np.append(my_r, my_t)
-					my_result_wo_refine.append(my_pred.tolist())
+					my_result_wo_refine.append([cls_id] + my_pred.tolist())
 					
 					for ite in range(0, iteration):
 						T = Variable(torch.from_numpy(my_t.astype(np.float32))).cuda().view(1, 3).repeat(num_points,
@@ -257,16 +267,15 @@ with tqdm(total=len(images)) as pbar:
 						my_r = my_r_final
 						my_t = my_t_final
 					
-					my_result.append(my_pred.tolist())
+					my_result.append([cls_id] + my_pred.tolist())
 				except ZeroDivisionError:
 					print("PoseCNN Detector Lost {0} at No.{1} keyframe".format(itemid, now))
-					my_result_wo_refine.append([0.0 for i in range(7)])
-					my_result.append([0.0 for i in range(7)])
+					my_result_wo_refine.append([cls_id] + [0.0 for i in range(7)])
+					my_result.append([cls_id] + [0.0 for i in range(7)])
 				
-				result_meta["classIds"].append({"classId": cls_id, "instanceId": inst})
-		
+		"the saved pose result. 0th position gives class id."
 		scio.savemat('{0}/{1}.mat'.format(result_wo_refine_dir, image_name),
-		             {'poses': my_result_wo_refine, 'meta': result_meta})
-		scio.savemat('{0}/{1}.mat'.format(result_refine_dir, image_name), {'poses': my_result, 'meta': result_meta})
+		             {'poses': my_result_wo_refine})
+		scio.savemat('{0}/{1}.mat'.format(result_refine_dir, image_name), {'poses': my_result})
 		print("Finish No.{0} keyframe".format(now))
 	pbar.update(1)

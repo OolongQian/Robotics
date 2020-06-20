@@ -5,8 +5,10 @@
 .idea
 cmake-build-debug
 datasets
+data
 mmdetection_work_dirs
 external_inputs
 external_outputs
 *.pth
 __pycache__
+checkpoints
