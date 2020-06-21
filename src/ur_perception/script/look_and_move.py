@@ -11,6 +11,17 @@ import scipy.io as scio
 
 bridge = CvBridge()
 
+
+"""
+Robot execution GETTING_STARTED: 
+roscore 
+roslaunch ur_perception camera_setup.launch 
+roslaunch ur_modern_driver ur5_bringup.launch  // drive robot hardware and publish physical information. 
+roslaunch ur5_moveit_config demo.launch  // initialize moveit essential service and infrastructure. 
+
+EXECUTE this script.
+"""
+
 """
 Dataset class information 
 
@@ -45,13 +56,16 @@ class Eyes:
         self.external_inputs_path = "external_inputs"
         self.external_outputs_path = "external_outputs"
 
-        rospy.init_node("eyes", anonymous=True)
+        # rospy.init_node("eyes", anonymous=True)
+
         self.cameraInfoTopic = "/realsense/camera_info"
         self.cameraRgbTopic = "/realsense/rgb"
         self.cameraDepthTopic = "/realsense/depth"
         self.cameraLinkName = "/camera_link"
-        # rospy.wait_for_message is equivalent to ros::spinOnce.
-        self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=5)
+
+        "rospy.wait_for_message is equivalent to ros::spinOnce." \
+        "only able to receive message when node is inited."
+        self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=None)
 
     def blink(self):
         "use rostopic type [topic_name] to check for message type."
@@ -128,10 +142,53 @@ class Eyes:
 
         self.rmTmpDirs()
 
+        return pose
+
+
+from moveit_python import MoveGroupInterface, PlanningSceneInterface
+from geometry_msgs.msg import Pose, Point, Quaternion
+
+class Terminator:
+    def __init__(self, ur_perception_ros_path, perception_repos_path):
+        self.ur_perception_ros_path = ur_perception_ros_path
+        self.perception_repos_path = perception_repos_path
+        self.eyes = Eyes(self.ur_perception_ros_path, self.perception_repos_path)
+
+        "planning scene interface creates a 'virtual environment around robot'."
+        self.p = PlanningSceneInterface(frame="base_link")
+        "group is ur5's planning group, can be seen with ur5_moveit_config demo.launch." \
+        "frame sets up the FOR for our coordinate system." \
+        "MoveGroupInterface is used for goal specification and control."
+        self.g = MoveGroupInterface(group="manipulator", frame="base_link")
+
+    def addCube(self):
+        input("press any key to add a cube in the scene to see whether this works.")
+        self.p.addCube("my_cube", 0.1, 1, 0, 0.5)
+
+    def removeCube(self):
+        input("press any key to remove the cube in the scene to see whether this works.")
+        self.p.removeCollisionObject("my_cube")
+
+    def addMesh(self):
+        input("press any key to add a cube in the scene to see whether this works.")
+        mesh_name = "../models/024_bowl/textured.obj"
+        self.p.addMesh(name="bowl", pose=Pose(Point(x=0.1, y=0.1, z=0.1), Quaternion()), filename=mesh_name)
+
+    def removeMesh(self):
+        input("press any key to remove the cube in the scene to see whether this works.")
+        self.p.removeCollisionObject("bowl")
+
 
 if __name__ == "__main__":
+    rospy.init_node("terminator_moveit_py", anonymous=True)
+
     ur_perception_ros_path = "/home/vinjohn/sucheng/Robotics/src/ur_perception"
     perception_repos_path = "/home/vinjohn/sucheng/Robotics/perception"
 
-    eyes = Eyes(ur_perception_ros_path, perception_repos_path)
-    eyes.blink()
+    # eyes = Eyes(ur_perception_ros_path, perception_repos_path)
+
+    terminator = Terminator(ur_perception_ros_path, perception_repos_path)
+    # terminator.addCube()
+    # terminator.removeCube()
+    terminator.addMesh()
+    terminator.removeMesh()

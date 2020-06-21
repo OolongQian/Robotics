@@ -9,6 +9,9 @@ project(ur_perception)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   camera_driver
+  rospy 
+  roscpp
+  tf
 )
 
 ## System dependencies are found with CMake's conventions
@@ -132,6 +135,9 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/ur_perception_node.cpp)
+add_executable(camera_tf_broadcaster src/camera_tf_broadcaster.cpp)
+target_link_libraries(camera_tf_broadcaster ${catkin_LIBRARIES})
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

@@ -1,5 +1,6 @@
 <launch>
-
+  <!-- start up the camera driver to publish images.
+        create camera link in tf using calibration result. -->
   <arg name="resWidth" default="640"/>
   <arg name="resHeight" default="480"/>
 
@@ -7,5 +8,6 @@
       <param name="resWidth"  type="int"  value="$(arg resWidth)" />
       <param name="resHeight"  type="int"  value="$(arg resHeight)" />
   </node>
-  <!-- <node pkg="camera_driver" name="realsense2_server" type="realsense2_server" /> -->
+
+  <node pkg="ur_perception" name="camera_tf_broadcaster" type="camera_tf_broadcaster"/>
 </launch>
