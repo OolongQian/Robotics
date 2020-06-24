@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 import os
 import cv2
 import subprocess
-import shutil
 import scipy.io as scio
+import time
 
 bridge = CvBridge()
 
@@ -46,6 +46,7 @@ Dataset class information
 20: '052_extra_large_clamp', 
 21: '061_foam_brick'
 """
+
 # TODO : refactor this utility function in ur_perception package.
 id2name = {1: '002_master_chef_can',
            2: '003_cracker_box',
@@ -77,14 +78,13 @@ def clsId2clsName(cls_id):
     return id2name[cls_id - 1]
 
 
+
 class Eyes:
     def __init__(self, ur_perception_ros_path, perception_repos_path):
         self.ur_perception_ros_path = ur_perception_ros_path
         self.perception_repos_path = perception_repos_path
         self.external_inputs_path = "external_inputs"
         self.external_outputs_path = "external_outputs"
-
-        # rospy.init_node("eyes", anonymous=True)
 
         self.cameraInfoTopic = "/realsense/camera_info"
         self.cameraRgbTopic = "/realsense/rgb"
@@ -93,23 +93,22 @@ class Eyes:
 
         "rospy.wait_for_message is equivalent to ros::spinOnce." \
         "only able to receive message when node is inited."
-        self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=None)
+        self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=5)
+
+    def getRgbd(self):
+        "raw ros image message needs to be processed by openCVS_bridge -> ndarray."
+        ros_rgb = rospy.wait_for_message(self.cameraRgbTopic, Image, timeout=5)
+        ros_depth = rospy.wait_for_message(self.cameraDepthTopic, Image, timeout=5)
+        rgb = bridge.imgmsg_to_cv2(ros_rgb, "passthrough")
+        depth = bridge.imgmsg_to_cv2(ros_depth, "passthrough")
+        return rgb, depth
 
     def blink(self):
         "use rostopic type [topic_name] to check for message type."
-        "use rosmsg show [message_name] to check for messsage data structure."
-        rgb = rospy.wait_for_message(self.cameraRgbTopic, Image, timeout=5)
-        depth = rospy.wait_for_message(self.cameraDepthTopic, Image, timeout=5)
-
+        # "use rosmsg show [message_name] to check for messsage data structure."
         try:
-            "raw ros image message needs to be processed by openCVS_bridge -> ndarray."
-            cv_rgb = bridge.imgmsg_to_cv2(rgb, "passthrough")
-            cv_depth = bridge.imgmsg_to_cv2(depth, "passthrough")
             "can display these images."
-            # self.myImshow(cv_rgb, 1)
-            # self.myImshow(cv_depth, 2)
-            # plt.show()
-            return self.detectAndEstimate(cv_rgb, cv_depth)
+            return self.detectAndEstimate(*self.getRgbd())
         except CvBridgeError:
             rospy.logerr("cv bridge error")
 
@@ -119,13 +118,13 @@ class Eyes:
 
     def makeTmpDirs(self):
         pass
-        if os.path.exists(os.path.join(self.ur_perception_ros_path, "data")):
-            shutil.rmtree(os.path.join(self.ur_perception_ros_path, "data"))
-        data_inputs = os.path.join(self.ur_perception_ros_path, "data", self.external_inputs_path)
-        data_outputs = os.path.join(self.ur_perception_ros_path, "data", self.external_outputs_path)
-        os.makedirs(os.path.join(data_inputs, "images"))
-        os.makedirs(os.path.join(data_inputs, "depths"))
-        os.makedirs(os.path.join(data_outputs))
+        # if os.path.exists(os.path.join(self.ur_perception_ros_path, "data")):
+        #     shutil.rmtree(os.path.join(self.ur_perception_ros_path, "data"))
+        # data_inputs = os.path.join(self.ur_perception_ros_path, "data", self.external_inputs_path)
+        # data_outputs = os.path.join(self.ur_perception_ros_path, "data", self.external_outputs_path)
+        # os.makedirs(os.path.join(data_inputs, "images"))
+        # os.makedirs(os.path.join(data_inputs, "depths"))
+        # os.makedirs(os.path.join(data_outputs))
 
     def rmTmpDirs(self):
         pass
@@ -141,8 +140,8 @@ class Eyes:
         data_outputs = os.path.join(self.ur_perception_ros_path, "data", self.external_outputs_path)
 
         "write rgb and depth into input folder."
-        rgb_name = os.path.join(data_inputs, "images", "tmp.png")
-        depth_name = os.path.join(data_inputs, "depths", "tmp.png")
+        rgb_name = os.path.join(data_inputs, "images", "tmp.tiff")
+        depth_name = os.path.join(data_inputs, "depths", "tmp.tiff")
         cv2.imwrite(rgb_name, cv_rgb)
         cv2.imwrite(depth_name, cv_depth)
 
@@ -165,12 +164,20 @@ class Eyes:
         if errors:
             print "\n\n%s\n\n" % errors
 
-        pose_mat_path = os.path.join(data_outputs, "df_outputs", "df_iterative_result", "tmp.png.mat")
+        pose_mat_path = os.path.join(data_outputs, "df_outputs", "df_iterative_result", "tmp.tiff.mat")
         pose = scio.loadmat(pose_mat_path)["poses"]
 
         self.rmTmpDirs()
-
         return pose
+
+    def remember(self):
+        save_path = '../visual_validate'
+        rgb, depth = self.getRgbd()
+        poses = self.detectAndEstimate(rgb, depth)
+        cv2.imwrite(os.path.join(save_path, "rgb.png"), rgb)
+        cv2.imwrite(os.path.join(save_path, "depth.png"), depth)
+        scio.savemat('{0}/{1}.mat'.format(save_path, "class_pose"),
+                     {'poses': poses})
 
 
 from moveit_python import MoveGroupInterface, PlanningSceneInterface
@@ -193,21 +200,19 @@ class Terminator:
 
         self.tf_listener = TransformListener()
 
-    def buildScene(self):
-        obj_poses = self.eyes.blink()
-
-        for i in range(obj_poses.shape[0]):
-            obj_pose = obj_poses[i]
-            cls_id, trans, rot = obj_pose[0], obj_pose[1:4], obj_pose[4:]
+    def buildScene(self, cls_and_poses):
+        for i in range(cls_and_poses.shape[0]):
+            obj_pose = cls_and_poses[i]
+            cls_id, rot, trans = obj_pose[0], obj_pose[1:5], obj_pose[5:]
             cls_name = clsId2clsName(cls_id)
-            instance_name = "{}_{}".format(cls_name, i)
+            instance_name = "index_{}_classname_{}".format(i, cls_name)
 
-            # t = self.tf_listener.getLatestCommonTime("base_link", "camera_link")
             camera_pose = geometry_msgs.msg.PoseStamped()
             camera_pose.header.frame_id = "camera_link"
             camera_pose.pose.position.x, camera_pose.pose.position.y, camera_pose.pose.position.z = trans[1], trans[0], \
                                                                                                     trans[2]
             camera_pose.pose.orientation.x, camera_pose.pose.orientation.y, camera_pose.pose.orientation.z, camera_pose.pose.orientation.w = rot
+            time.sleep(2)  # leave some time for tf_listener to prepare.
             base_pose = self.tf_listener.transformPose("base_link", camera_pose)
 
             self.addMesh(clsId2clsName(cls_id), instance_name, base_pose.pose.position, base_pose.pose.orientation)
@@ -225,20 +230,13 @@ def eyeTest(ur_perception_ros_path, perception_repos_path):
 
 def buildSceneTest(ur_perception_ros_path, perception_repos_path):
     terminator = Terminator(ur_perception_ros_path, perception_repos_path)
-    terminator.buildScene()
+    oo_scene = terminator.eyes.blink()
+    terminator.buildScene(oo_scene)
 
 
-def tfTest():
-    tf_listener = TransformListener()
-    camera_pose = geometry_msgs.msg.PoseStamped()
-    camera_pose.header.frame_id = "/camera_link"
-    camera_pose.pose.position.x, camera_pose.pose.position.y, camera_pose.pose.position.z = 0, 0, 0
-    camera_pose.pose.orientation.x, camera_pose.pose.orientation.y, camera_pose.pose.orientation.z = 0, 0, 0
-    camera_pose.pose.orientation.w = 1.0
-    import time
-    time.sleep(2)
-    base_pose = tf_listener.transformPose("/base_link", camera_pose)
-    a = 1
+def remember4Validate(ur_perception_ros_path, perception_repos_path):
+    terminator = Terminator(ur_perception_ros_path, perception_repos_path)
+    terminator.eyes.remember()
 
 
 if __name__ == "__main__":
@@ -249,7 +247,7 @@ if __name__ == "__main__":
 
     # eyeTest(ur_perception_ros_path, perception_repos_path)
     buildSceneTest(ur_perception_ros_path, perception_repos_path)
-    # tfTest()
+    # remember4Validate(ur_perception_ros_path, perception_repos_path)
 
     # terminator = Terminator(ur_perception_ros_path, perception_repos_path)
     # terminator.eyes.blink()

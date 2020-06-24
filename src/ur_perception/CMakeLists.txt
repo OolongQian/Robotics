@@ -12,6 +12,13 @@ find_package(catkin REQUIRED COMPONENTS
   rospy 
   roscpp
   tf
+   std_msgs
+ message_generation
+     moveit_core
+    moveit_visual_tools
+    moveit_ros_planning
+    moveit_ros_planning_interface
+    moveit_ros_perception
 )
 
 ## System dependencies are found with CMake's conventions
@@ -48,11 +55,13 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
+add_message_files(
+  FILES
 #   Message1.msg
 #   Message2.msg
-# )
+    ScenePoses.msg
+    Num.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -69,10 +78,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
+generate_messages(
+  DEPENDENCIES
 #   std_msgs  # Or other packages containing msgs
-# )
+    std_msgs
+    geometry_msgs
+    sensor_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -108,6 +120,11 @@ catkin_package(
 #  LIBRARIES ur_perception
 #  CATKIN_DEPENDS camera_driver
 #  DEPENDS system_lib
+CATKIN_DEPENDS
+message_runtime
+    moveit_core
+    moveit_visual_tools
+    moveit_ros_planning_interface
 )
 
 ###########
@@ -137,6 +154,9 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/ur_perception_node.cpp)
 add_executable(camera_tf_broadcaster src/camera_tf_broadcaster.cpp)
 target_link_libraries(camera_tf_broadcaster ${catkin_LIBRARIES})
+
+add_executable(shaky src/shaky.cpp)
+target_link_libraries(shaky ${catkin_LIBRARIES})
 
 
 ## Rename C++ executable without prefix
