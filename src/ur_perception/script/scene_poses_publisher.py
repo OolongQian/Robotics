@@ -14,6 +14,7 @@ import shutil
 import std_msgs.msg
 from geometry_msgs.msg import Point32
 import PIL.Image as PilImage
+
 bridge = CvBridge()
 
 
@@ -29,11 +30,12 @@ class Eyes:
         self.cameraDepthTopic = "/realsense/depth"
         self.cameraLinkName = "/camera_link"
 
-        "rospy.wait_for_message is equivalent to ros::spinOnce." \
-        "only able to receive message when node is inited."
-        self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=5)
+        # "rospy.wait_for_message is equivalent to ros::spinOnce." \
+        # "only able to receive message when node is inited."
+        # self.cameraInfo = rospy.wait_for_message(self.cameraInfoTopic, CameraInfo, timeout=5)
 
     def getRgbd(self):
+
         "raw ros image message needs to be processed by openCVS_bridge -> ndarray."
         ros_rgb = rospy.wait_for_message(self.cameraRgbTopic, Image, timeout=5)
         ros_depth = rospy.wait_for_message(self.cameraDepthTopic, Image, timeout=5)
@@ -92,7 +94,7 @@ class Eyes:
 
         pose_mat_path = os.path.join(data_outputs, "df_outputs", "df_iterative_result", "tmp.tiff.mat")
         # pose_mat_path = os.path.join(data_outputs, "df_outputs", "df_wo_refine_result", "tmp.tiff.mat")
-        pose = scio.loadmat(pose_mat_path)["poses"]
+        poses = scio.loadmat(pose_mat_path)["poses"]
 
         plds_path = os.path.join(data_outputs, "df_outputs", "masked_plds")
         plds = []
@@ -107,7 +109,7 @@ class Eyes:
             plds.append(pts)
 
         self.rmTmpDirs()
-        return pose, plds
+        return poses, plds
 
 
 # license removed for brevity

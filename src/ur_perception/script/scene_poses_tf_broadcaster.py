@@ -41,12 +41,12 @@ def dynamicTfBroadcast(scene_poses):
         pos = pose.position
         ori = pose.orientation
         br.sendTransform((pos.x, pos.y, pos.z), (ori.x, ori.y, ori.z, ori.w), rospy.Time.now(),
-                         id2name[class_id], "camera_link")
+                         id2name[class_id + 1], "camera_link")
 
-        print "update 6d pose for {}".format(id2name[class_id])
+        print "update 6d pose for {}".format(id2name[class_id + 1])
 
 
-def listener():
+def broadcaster():
     # In ROS, nodes are uniquely named. If two nodes with the same
     # name are launched, the previous one is kicked off. The
     # anonymous=True flag means that rospy will choose a unique
@@ -59,4 +59,4 @@ def listener():
 
 
 if __name__ == '__main__':
-    listener()
+    broadcaster()
