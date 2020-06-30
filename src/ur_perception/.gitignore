@@ -1,1 +1,4 @@
-models
+*models
+*.idea
+*cmake-build-debug
+*data

@@ -1,0 +1,4 @@
+<launch>
+    <node name="scene_poses_publisher" pkg="ur_perception" type="scene_poses_publisher.py"/>
+    <node name="scene_poses_tf_broadcaster" pkg="ur_perception" type="scene_poses_tf_broadcaster.py"/>
+</launch>
