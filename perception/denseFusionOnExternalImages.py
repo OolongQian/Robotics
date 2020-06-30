@@ -150,178 +150,180 @@ def adjustBboxFormat(bb):
     return rmin, rmax, cmin, cmax
 
 
-with tqdm(total=len(images)) as pbar:
-    for now, image_name in enumerate(images):
-        img = Image.open(os.path.join(external_inputs_path, "images", image_name))
-        depth = np.array(Image.open(os.path.join(external_inputs_path, "depths", image_name)))
+# with tqdm(total=len(images)) as pbar:
+for now, image_name in enumerate(images):
+    img = Image.open(os.path.join(external_inputs_path, "images", image_name))
+    depth = np.array(Image.open(os.path.join(external_inputs_path, "depths", image_name)))
 
-        """Here we need to translate the output of mmdetection to the form consistent with PoseCNN result,
-            therefore we gotta give a description of them.
-        In original DenseFusion:
-        For each image, several objects can be detected, thus we would have a list of items.
-        Each item consists of class id, segmentation mask, and bounding box.
-        Segmentation mask can be represented compactly in an image-like numpy array, where is pixel value is the class index.
-        Mask min is 0, mask max is 21, to represent 21 classes and null class.
-        
-        The output of mmdetection:
-        The output mmd_results in a dict, key is image name, value is a tuple (bboxes, labels).
-        bboxes is a list of length 21, each element is a numpy array (N, 5), where the first 4 of 5 is bounding box,
-            the last one may be confidence score. While N means there may be several objects within identical category.
-        labels is a list of length 21, each element is a list of instance masks, which is a dict {'size': XXX, 'counts': XXX}.
-        mmdetection's bbox is represented as
-            left_top = (bbox_int[0], bbox_int[1])
-            right_bottom = (bbox_int[2], bbox_int[3]).
-        """
-        # segmentation label.
-        cls_bboxes, cls_segms = mmd_results[image_name]
+    """Here we need to translate the output of mmdetection to the form consistent with PoseCNN result,
+        therefore we gotta give a description of them.
+    In original DenseFusion:
+    For each image, several objects can be detected, thus we would have a list of items.
+    Each item consists of class id, segmentation mask, and bounding box.
+    Segmentation mask can be represented compactly in an image-like numpy array, where is pixel value is the class index.
+    Mask min is 0, mask max is 21, to represent 21 classes and null class.
+    
+    The output of mmdetection:
+    The output mmd_results in a dict, key is image name, value is a tuple (bboxes, labels).
+    bboxes is a list of length 21, each element is a numpy array (N, 5), where the first 4 of 5 is bounding box,
+        the last one may be confidence score. While N means there may be several objects within identical category.
+    labels is a list of length 21, each element is a list of instance masks, which is a dict {'size': XXX, 'counts': XXX}.
+    mmdetection's bbox is represented as
+        left_top = (bbox_int[0], bbox_int[1])
+        right_bottom = (bbox_int[2], bbox_int[3]).
+    """
+    # segmentation label.
+    cls_bboxes, cls_segms = mmd_results[image_name]
 
-        my_result_wo_refine = []
-        my_result = []
-        result_meta = {"name": image_name, "classIds": []}
+    my_result_wo_refine = []
+    my_result = []
+    result_meta = {"name": image_name, "classIds": []}
 
-        # enumerate over classes.
-        index = 0
-        for cls_id in range(len(cls_bboxes)):
-            itemid = cls_id + 1
-            bboxes = cls_bboxes[cls_id]
-            segms = cls_segms[cls_id]
-            # enumerate over instances within this class.
-            for inst in range(bboxes.shape[0]):
-                try:
-                    bbox = bboxes[inst, :]
-                    segm = segms[inst]
+    # enumerate over classes.
+    idx = 0
+    for cls_id in range(len(cls_bboxes)):
+        itemid = cls_id + 1
+        bboxes = cls_bboxes[cls_id]
+        segms = cls_segms[cls_id]
+        # enumerate over instances within this class.
+        for inst in range(bboxes.shape[0]):
+            try:
+                bbox = bboxes[inst, :]
+                if bbox[4] < 0.5:
+                    continue
+                segm = segms[inst]
 
-                    rmin, rmax, cmin, cmax = adjustBboxFormat(bbox)
+                rmin, rmax, cmin, cmax = adjustBboxFormat(bbox)
 
-                    mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))
-                    mask_label = decode(segm).astype(np.bool)
-                    mask = mask_label * mask_depth
+                mask_depth = ma.getmaskarray(ma.masked_not_equal(depth, 0))
+                mask_label = decode(segm).astype(np.bool)
+                mask = mask_label * mask_depth
 
-                    choose = mask[rmin:rmax, cmin:cmax].flatten().nonzero()[0]
-                    print("len choose is ", len(choose))
-                    if len(choose) > num_points:
-                        c_mask = np.zeros(len(choose), dtype=int)
-                        c_mask[:num_points] = 1
-                        np.random.shuffle(c_mask)
-                        choose = choose[c_mask.nonzero()]
-                    else:
-                        choose = np.pad(choose, (0, num_points - len(choose)), 'wrap')
+                choose = mask[rmin:rmax, cmin:cmax].flatten().nonzero()[0]
+                print("len choose is ", len(choose))
+                if len(choose) > num_points:
+                    c_mask = np.zeros(len(choose), dtype=int)
+                    c_mask[:num_points] = 1
+                    np.random.shuffle(c_mask)
+                    choose = choose[c_mask.nonzero()]
+                else:
+                    choose = np.pad(choose, (0, num_points - len(choose)), 'wrap')
 
-                    depth_masked = depth[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
-                    xmap_masked = xmap[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
-                    ymap_masked = ymap[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
-                    choose = np.array([choose])
+                depth_masked = depth[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
+                xmap_masked = xmap[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
+                ymap_masked = ymap[rmin:rmax, cmin:cmax].flatten()[choose][:, np.newaxis].astype(np.float32)
+                choose = np.array([choose])
 
-                    pt2 = depth_masked / cam_scale
-                    pt0 = (ymap_masked - cam_cx) * pt2 / cam_fx
-                    pt1 = (xmap_masked - cam_cy) * pt2 / cam_fy
-                    cloud = np.concatenate((pt0, pt1, pt2), axis=1)
+                pt2 = depth_masked / cam_scale
+                pt0 = (ymap_masked - cam_cx) * pt2 / cam_fx
+                pt1 = (xmap_masked - cam_cy) * pt2 / cam_fy
+                cloud = np.concatenate((pt0, pt1, pt2), axis=1)
 
-                    img_masked = np.array(img)[:, :, :3]
-                    img_masked = np.transpose(img_masked, (2, 0, 1))
-                    img_masked = img_masked[:, rmin:rmax, cmin:cmax]
+                img_masked = np.array(img)[:, :, :3]
+                img_masked = np.transpose(img_masked, (2, 0, 1))
+                img_masked = img_masked[:, rmin:rmax, cmin:cmax]
 
-                    cloud = torch.from_numpy(cloud.astype(np.float32))
-                    choose = torch.LongTensor(choose.astype(np.int32))
-                    img_masked = norm(torch.from_numpy(img_masked.astype(np.float32)))
-                    index = torch.LongTensor([cls_id])
+                cloud = torch.from_numpy(cloud.astype(np.float32))
+                choose = torch.LongTensor(choose.astype(np.int32))
+                img_masked = norm(torch.from_numpy(img_masked.astype(np.float32)))
+                index = torch.LongTensor([cls_id])
 
-                    cloud = Variable(cloud).cuda()
-                    choose = Variable(choose).cuda()
-                    img_masked = Variable(img_masked).cuda()
-                    index = Variable(index).cuda()
+                cloud = Variable(cloud).cuda()
+                choose = Variable(choose).cuda()
+                img_masked = Variable(img_masked).cuda()
+                index = Variable(index).cuda()
 
-                    cloud = cloud.view(1, num_points, 3)
-                    img_masked = img_masked.view(1, 3, img_masked.size()[1], img_masked.size()[2])
+                cloud = cloud.view(1, num_points, 3)
+                img_masked = img_masked.view(1, 3, img_masked.size()[1], img_masked.size()[2])
 
-                    pred_r, pred_t, pred_c, emb = estimator(img_masked, cloud, choose, index)
-                    pred_r = pred_r / torch.norm(pred_r, dim=2).view(1, num_points, 1)
+                pred_r, pred_t, pred_c, emb = estimator(img_masked, cloud, choose, index)
+                pred_r = pred_r / torch.norm(pred_r, dim=2).view(1, num_points, 1)
 
-                    pred_c = pred_c.view(bs, num_points)
-                    how_max, which_max = torch.max(pred_c, 1)
-                    pred_t = pred_t.view(bs * num_points, 1, 3)
-                    points = cloud.view(bs * num_points, 1, 3)
+                pred_c = pred_c.view(bs, num_points)
+                how_max, which_max = torch.max(pred_c, 1)
+                pred_t = pred_t.view(bs * num_points, 1, 3)
+                points = cloud.view(bs * num_points, 1, 3)
 
-                    my_r = pred_r[0][which_max[0]].view(-1).cpu().data.numpy()
-                    my_t = (points + pred_t)[which_max[0]].view(-1).cpu().data.numpy()
-                    my_pred = np.append(my_r, my_t)
-                    my_result_wo_refine.append([cls_id] + my_pred.tolist())
+                my_r = pred_r[0][which_max[0]].view(-1).cpu().data.numpy()
+                my_t = (points + pred_t)[which_max[0]].view(-1).cpu().data.numpy()
+                my_pred = np.append(my_r, my_t)
+                my_result_wo_refine.append([cls_id] + my_pred.tolist())
 
-                    for ite in range(0, iteration):
-                        T = Variable(torch.from_numpy(my_t.astype(np.float32))).cuda().view(1, 3).repeat(num_points,
-                                                                                                         1).contiguous().view(
-                            1, num_points, 3)
-                        my_mat = quaternion_matrix(my_r)
-                        R = Variable(torch.from_numpy(my_mat[:3, :3].astype(np.float32))).cuda().view(1, 3, 3)
-                        my_mat[0:3, 3] = my_t
+                for ite in range(0, iteration):
+                    T = Variable(torch.from_numpy(my_t.astype(np.float32))).cuda().view(1, 3).repeat(num_points,
+                                                                                                     1).contiguous().view(
+                        1, num_points, 3)
+                    my_mat = quaternion_matrix(my_r)
+                    R = Variable(torch.from_numpy(my_mat[:3, :3].astype(np.float32))).cuda().view(1, 3, 3)
+                    my_mat[0:3, 3] = my_t
 
-                        new_cloud = torch.bmm((cloud - T), R).contiguous()
-                        pred_r, pred_t = refiner(new_cloud, emb, index)
-                        pred_r = pred_r.view(1, 1, -1)
-                        pred_r = pred_r / (torch.norm(pred_r, dim=2).view(1, 1, 1))
-                        my_r_2 = pred_r.view(-1).cpu().data.numpy()
-                        my_t_2 = pred_t.view(-1).cpu().data.numpy()
-                        my_mat_2 = quaternion_matrix(my_r_2)
+                    new_cloud = torch.bmm((cloud - T), R).contiguous()
+                    pred_r, pred_t = refiner(new_cloud, emb, index)
+                    pred_r = pred_r.view(1, 1, -1)
+                    pred_r = pred_r / (torch.norm(pred_r, dim=2).view(1, 1, 1))
+                    my_r_2 = pred_r.view(-1).cpu().data.numpy()
+                    my_t_2 = pred_t.view(-1).cpu().data.numpy()
+                    my_mat_2 = quaternion_matrix(my_r_2)
 
-                        my_mat_2[0:3, 3] = my_t_2
+                    my_mat_2[0:3, 3] = my_t_2
 
-                        my_mat_final = np.dot(my_mat, my_mat_2)
-                        my_r_final = copy.deepcopy(my_mat_final)
-                        my_r_final[0:3, 3] = 0
-                        my_r_final = quaternion_from_matrix(my_r_final, True)
-                        my_t_final = np.array([my_mat_final[0][3], my_mat_final[1][3], my_mat_final[2][3]])
+                    my_mat_final = np.dot(my_mat, my_mat_2)
+                    my_r_final = copy.deepcopy(my_mat_final)
+                    my_r_final[0:3, 3] = 0
+                    my_r_final = quaternion_from_matrix(my_r_final, True)
+                    my_t_final = np.array([my_mat_final[0][3], my_mat_final[1][3], my_mat_final[2][3]])
 
-                        my_pred = np.append(my_r_final, my_t_final)
-                        my_r = my_r_final
-                        my_t = my_t_final
+                    my_pred = np.append(my_r_final, my_t_final)
+                    my_r = my_r_final
+                    my_t = my_t_final
 
-                    my_result.append([cls_id] + my_pred.tolist())
+                my_result.append([cls_id] + my_pred.tolist())
 
-                    "here we finally have both class item id and predicted poses."
-                    assert my_pred is not None
-                    pose = my_pred.tolist()
+                "here we finally have both class item id and predicted poses."
+                assert my_pred is not None
+                pose = my_pred.tolist()
 
-                    pt2 = depth_masked / cam_scale
-                    pt0 = (ymap_masked - cam_cx) * pt2 / cam_fx
-                    pt1 = (xmap_masked - cam_cy) * pt2 / cam_fy
-                    cloud = np.concatenate((pt0, pt1, pt2), axis=1)
+                pt2 = depth_masked / cam_scale
+                pt0 = (ymap_masked - cam_cx) * pt2 / cam_fx
+                pt1 = (xmap_masked - cam_cy) * pt2 / cam_fy
+                cloud = np.concatenate((pt0, pt1, pt2), axis=1)
 
-                    img_masked = np.array(img)[:, :, :3]
-                    img_masked = np.transpose(img_masked, (2, 0, 1))
-                    img_masked = img_masked[:, rmin:rmax, cmin:cmax]
+                img_masked = np.array(img)[:, :, :3]
+                img_masked = np.transpose(img_masked, (2, 0, 1))
+                img_masked = img_masked[:, rmin:rmax, cmin:cmax]
 
-                    "visualize masked rgb image"
-                    # print("class id {} name {}".format(clsid, id2name[clsid]))
-                    # plt.imshow(img_masked_display)
-                    # plt.show()
+                "visualize masked rgb image"
+                # print("class id {} name {}".format(clsid, id2name[clsid]))
+                # plt.imshow(img_masked_display)
+                # plt.show()
 
-                    "visualize masked rgbd point cloud"
-                    # pcd = o3d.geometry.PointCloud()
-                    # pcd.points = o3d.utility.Vector3dVector(cloud)
+                "visualize masked rgbd point cloud"
+                # pcd = o3d.geometry.PointCloud()
+                # pcd.points = o3d.utility.Vector3dVector(cloud)
 
-                    "store rgb, depth, clouds, instance id, class id."
-                    result_plds_dir = os.path.join(df_output_dir, "masked_plds")
+                "store rgb, depth, clouds, instance id, class id."
+                result_plds_dir = os.path.join(df_output_dir, "masked_plds")
 
-                    pcd = o3d.geometry.PointCloud()
-                    pcd.points = o3d.utility.Vector3dVector(cloud)
-                    o3d.io.write_point_cloud(
-                        os.path.join(result_plds_dir,
-                                     '_'.join(image_name.split('/')) + "_index_{}.xyz".format(index)), pcd)
-                    print ("store point cloud in " + result_plds_dir + '_'.join(
-                        image_name.split('/')) + "_index_{}.xyz".format(index))
-                    index += 1
-                except ZeroDivisionError:
-                    print("PoseCNN Detector Lost {0} at No.{1} keyframe".format(itemid, now))
-                    my_result_wo_refine.append([cls_id] + [0.0 for i in range(7)])
-                    my_result.append([cls_id] + [0.0 for i in range(7)])
-                    with open(result_plds_dir,
-                              '_'.join(image_name.split('/')) + "_index_{}.xyz".format(index), 'w') as f:
-                        pass
-                    index += 1
+                pcd = o3d.geometry.PointCloud()
+                pcd.points = o3d.utility.Vector3dVector(cloud)
+                o3d.io.write_point_cloud(
+                    os.path.join(result_plds_dir,
+                                 '_'.join(image_name.split('/')) + "_index_{0}_class_{1}.xyz".format(idx, itemid)), pcd)
+                print ("store point cloud in " + result_plds_dir + '_'.join(
+                    image_name.split('/')) + "_index_{0}_class_{1}.xyz".format(idx, itemid))
+                idx += 1
+            except ZeroDivisionError:
+                print("PoseCNN Detector Lost {0} at No.{1} keyframe".format(itemid, now))
+                my_result_wo_refine.append([cls_id] + [0.0 for i in range(7)])
+                my_result.append([cls_id] + [0.0 for i in range(7)])
+                with open(result_plds_dir,
+                          '_'.join(image_name.split('/')) + "_index_{0}_class_{1}.xyz".format(idx, itemid), 'w') as f:
+                    pass
+                idx += 1
 
-        "the saved pose result. 0th position gives class id."
-        scio.savemat('{0}/{1}.mat'.format(result_wo_refine_dir, image_name),
-                     {'poses': my_result_wo_refine})
-        scio.savemat('{0}/{1}.mat'.format(result_refine_dir, image_name), {'poses': my_result})
-        print("Finish No.{0} keyframe".format(now))
-    pbar.update(1)
+    "the saved pose result. 0th position gives class id."
+    scio.savemat('{0}/{1}.mat'.format(result_wo_refine_dir, image_name),
+                 {'poses': my_result_wo_refine})
+    scio.savemat('{0}/{1}.mat'.format(result_refine_dir, image_name), {'poses': my_result})
+    print("Finish No.{0} keyframe".format(now))
+    # pbar.update(1)
