@@ -158,6 +158,12 @@ target_link_libraries(camera_tf_broadcaster ${catkin_LIBRARIES})
 add_executable(shaky src/shaky.cpp)
 target_link_libraries(shaky ${catkin_LIBRARIES})
 
+add_executable(robot_model_and_robot_state src/robot_model_and_robot_state.cpp)
+target_link_libraries(robot_model_and_robot_state ${catkin_LIBRARIES})
+
+add_executable(move_group_ur5 src/move_group_ur5.cpp)
+target_link_libraries(move_group_ur5 ${catkin_LIBRARIES})
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
