@@ -12,3 +12,4 @@ external_outputs
 *.pth
 __pycache__
 checkpoints
+frames*
