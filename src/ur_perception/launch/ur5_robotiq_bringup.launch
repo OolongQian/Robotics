@@ -1,0 +1,32 @@
+<launch>
+    <!-- Produce the connectiity with UR5 and Robotiq_85 arm -->
+
+    <!-- arguments for ur5 -->
+    <!-- robot_ip: IP-address of the robot's socket-messaging server -->
+    <arg name="robot_ip" default="192.168.1.102"/>
+    <arg name="limited" default="false"/>
+    <arg name="min_payload"  default="0.0"/>
+    <arg name="max_payload"  default="5.0"/>
+    <arg name="prefix" default="" />
+
+    <!-- arguments for robotiq_2f_85 -->
+    <arg name="comport" default="/dev/ttyUSB0"/>
+    <arg name="baud" default="115200"/>
+    <arg name="run_test" default="false"/>
+
+    <include file="$(find ros_ur5_robotiq_2f_85)/launch/ur5_robotiq_bringup.launch">
+        <arg name="prefix"  value="$(arg prefix)" />
+        <arg name="robot_ip" value="$(arg robot_ip)"/>
+        <arg name="min_payload"  value="$(arg min_payload)"/>
+        <arg name="max_payload"  value="$(arg max_payload)"/>
+        <arg name="limited"  value="$(arg limited)"/>
+        <arg name="comport" value="$(arg comport)"/>
+        <arg name="baud" value="$(arg baud)"/>
+        <arg name="run_test" value="$(arg run_test)"/>
+    </include>
+
+    <include file="$(find ur5_moveit_config)/launch/ur5_moveit_planning_execution.launch"/>
+
+    <!-- Rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur_perception)/config/ur_perception.rviz" required="true" />
+</launch>
