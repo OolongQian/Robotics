@@ -22,8 +22,7 @@ In current stage, we will need the function of debug in most of times, so we use
 2 roslaunch ur_perception camera_setup.launch
 3 roslaunch ur_perception ur5_robotiq_bringup.launch
 4 roslaunch ur_perception start_scene_poses.launch
-5 roslaunch ur5_moveit_config ur5_moveit_planning_execution.launch
-6 rosrun ur_perception move_group_ur5
+5 rosrun ur_perception move_group_ur5
 ```
 
 ## Current progress
