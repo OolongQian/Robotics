@@ -16,13 +16,14 @@ source ~/sucheng/Robotics/devel/setup.bash
 ```
 into ~/.bashrc, we don't need to source it in each new terminal.
 
+In current stage, we will need the function of debug in most of times, so we use multiple terminals to see each launch file's warning or error.
 ```
 1 roscore
 2 roslaunch ur_perception camera_setup.launch
-3 roslaunch ur_modern_driver ur5_bringup.launch robot_ip:=192.168.1.102
+3 roslaunch ur_perception ur5_robotiq_bringup.launch
 4 roslaunch ur_perception start_scene_poses.launch
-5 rosrun ur_perception move_group_ur5
-6 rviz
+5 roslaunch ur5_moveit_config ur5_moveit_planning_execution.launch
+6 rosrun ur_perception move_group_ur5
 ```
 
 ## Current progress
@@ -35,8 +36,8 @@ to each given object.
 
 * Use moveit to let UR5 touch the object.
 
+* Add the model and URDF of the gripper.
+
 ## Short-term plan
 
-* Learn the structure of pddlStream.
-
-* Add the model and URDF of the gripper.
+* Use pddlStream as the high-level planning method to plan each motion.
