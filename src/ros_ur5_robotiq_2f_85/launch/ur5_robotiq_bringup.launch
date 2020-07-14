@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<!--
+  Connecting UR5 with Robotiq 85, reflacting real-time state from real hardware to RViz
+
+  Usage:
+    roslaunch ros_ur5_robotiq_2f_85 ros_ur5_robotiq_2f_85.launch robot_ip:=<robot_ip> comport:=<comport>
+-->
+<launch>
+  <!-- arguments for ur5 -->
+  <!-- robot_ip: IP-address of the robot's socket-messaging server -->
+  <arg name="robot_ip" default="192.168.1.102"/>
+  <arg name="limited" default="false"/>
+  <arg name="min_payload"  default="0.0"/>
+  <arg name="max_payload"  default="5.0"/>
+  <arg name="prefix" default="" />
+
+  <!-- arguments for robotiq_2f_85 -->
+  <arg name="comport" default="/dev/ttyUSB0"/>
+  <arg name="baud" default="115200"/>
+  <arg name="run_test" default="false"/>
+
+  <!-- robot model -->
+  <param name="robot_description" command="$(find xacro)/xacro --inorder $(find ros_ur5_robotiq_2f_85)/urdf/ur5_robotiq85.urdf.xacro" />
+
+  <!-- UR5 ROS Driver-->
+  <include file="$(find ur_modern_driver)/launch/ur_common.launch">
+    <arg name="prefix"  value="$(arg prefix)" />
+    <arg name="robot_ip" value="$(arg robot_ip)"/>
+    <arg name="min_payload"  value="$(arg min_payload)"/>
+    <arg name="max_payload"  value="$(arg max_payload)"/>
+  </include>
+
+  <!-- Robotiq 85 ROS Driver -->
+  <node pkg="robotiq_85_driver" type="robotiq_85_driver" name="robotiq_85_driver" respawn="false" output="screen">
+      <param name="num_grippers" value="1"/>
+      <param name="comport" value="$(arg comport)" />
+      <param name="baud" value="$(arg baud)" />
+  </node>
+
+  <node pkg="robotiq_85_driver" type="robotiq_85_test" name="robotiq_85_test" output="screen" if="$(arg run_test)">
+      <param name="num_grippers" value="1"/>
+  </node>
+
+
+</launch>
