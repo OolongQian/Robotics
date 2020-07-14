@@ -19,3 +19,6 @@
 [submodule "src/moveit_python"]
 	path = src/moveit_python
 	url = https://github.com/OolongQian/moveit_python
+[submodule "src/robotiq_85_gripper"]
+	path = src/robotiq_85_gripper
+	url = https://github.com/Simon-Fuhaoyuan/robotiq_85_gripper
