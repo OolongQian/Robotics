@@ -119,6 +119,8 @@ int main(int argc, char** argv) {
 
     move_group.setPoseTarget(target_pose_stamped.pose);
 
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to start planning.");
+
     // Plan and verify success
     success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
     ROS_INFO_NAMED("ur5", "Visualizing plan 1 (touch object) %s", success ? "" : "FAILED");
@@ -128,13 +130,13 @@ int main(int argc, char** argv) {
     visual_tools.publishText(text_pose, "Joint Space Goal", rvt::WHITE, rvt::XLARGE);
     visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
     visual_tools.trigger();
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the robot");
 
     // Let the real robot move
     if (success)
         move_group.move();
 
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to plan the way back");
 
     // Get current position and plan for the way back.
     move_group.setStartState(*move_group.getCurrentState());
@@ -149,7 +151,7 @@ int main(int argc, char** argv) {
     visual_tools.publishText(text_pose, "Joint Space Goal", rvt::WHITE, rvt::XLARGE);
     visual_tools.publishTrajectoryLine(my_plan.trajectory_, joint_model_group);
     visual_tools.trigger();
-    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to continue the demo");
+    visual_tools.prompt("Press 'next' in the RvizVisualToolsGui window to move the robot");
 
     if (success)
         move_group.move();
