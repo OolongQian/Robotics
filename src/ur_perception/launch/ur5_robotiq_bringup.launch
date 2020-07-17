@@ -25,7 +25,7 @@
         <arg name="run_test" value="$(arg run_test)"/>
     </include>
 
-    <include file="$(find ur5_moveit_config)/launch/ur5_moveit_planning_execution.launch"/>
+    <include file="$(find ur5_robotiq85_moveit_config)/launch/move_group.launch"/>
 
     <!-- Rviz -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find ur_perception)/config/ur_perception.rviz" required="true" />

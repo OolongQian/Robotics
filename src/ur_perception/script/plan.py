@@ -116,12 +116,40 @@ class MoveGroupUR5(object):
 
         return self.poses
 
+    def execute_plan(self, plan):
+        self.move_group.execute(plan, wait=True)
+
+    def display_trajectory(self, plan):
+        display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+        display_trajectory.trajectory_start = self.robot.get_current_state()
+        display_trajectory.trajectory.append(plan)
+        # Publish
+        self.display_trajectory_publisher.publish(display_trajectory)
+
+    def go_to_joint_state(self):
+        joint_goal = self.move_group.get_current_joint_values()
+        print(joint_goal)
+        joint_goal[0] = 0
+
+        self.move_group.set_joint_value_target(joint_goal)
+        plan = self.move_group.plan()
+
+        return plan
+
 
 def get_problem():
     move_group = MoveGroupUR5()
-    poses = move_group.get_object_6dPose()
-    print(poses)
+    # poses = move_group.get_object_6dPose()
+    # print(poses)
+    plan = move_group.go_to_joint_state()
+    print('Press')
+    raw_input()
+    move_group.display_trajectory(plan)
+    raw_input()
+    move_group.execute_plan(plan)
+
     exit()
+
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = None
     constant_map = {}
