@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot name="ur5" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="ur5_robotiq85" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
 <!--  <xacro:include filename="$(find ur5_description)/urdf/ur5_joint_limited_robot.urdf.xacro" />-->
   <xacro:include filename="$(find ur_description)/urdf/ur5_robot.urdf.xacro" />
