@@ -1,11 +1,16 @@
 #!/usr/bin/env python
-from __future__ import print_function
 
+from __future__ import print_function
 import argparse
 import numpy as np
 import sys
 import copy
-import time
+from math import pi
+
+import rospy
+import tf
+from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And, print_solution
@@ -13,17 +18,11 @@ from pddlstream.language.function import FunctionInfo
 from pddlstream.language.generator import from_gen_fn, from_fn
 from pddlstream.utils import read, INF, get_file_path
 
-import rospy
-import tf
-from geometry_msgs.msg import PoseStamped
-from std_msgs.msg import String
-from moveit_commander.conversions import pose_to_list
-
 import moveit_commander
 import moveit_msgs.msg
+from moveit_commander.conversions import pose_to_list
 
 from robotiq_85_msgs.msg import GripperCmd, GripperStat
-from math import pi
 from scene_poses_tf_listener import id2name
 from ur_perception.msg import ScenePoses
 
@@ -73,13 +72,14 @@ class UR5(object):
         self._gripper_pub = rospy.Publisher('/gripper/cmd', GripperCmd, queue_size=10)
         self._gripper_stat = GripperStat()
         self._gripper_cmd = GripperCmd()
-        self.open_gripper()
+        # self.open_gripper()
 
         self.robot = robot
         self.arm = arm
         self.gripper = gripper
         self.display_trajectory_publisher = display_trajectory_publisher
         self.group_names = group_names
+        self.init_pose = self.arm.get_current_pose().pose
 
         self.waiting = True
         self.object_poses = {}
@@ -97,7 +97,7 @@ class UR5(object):
 
         self.waiting = False
 
-    def get_object_6d_ose(self):
+    def get_object_6d_pose(self):
         # Get each object's name and 6d pose based on Intel REALSENCE
         # Return a dictionary in form of {'name': (translation, rotation)}
         # Rotation term is in formulation of quaternion
@@ -122,9 +122,9 @@ class UR5(object):
         print("Press Enter to visualize the trajectory in RViz.")
         raw_input()
         self.display_trajectory(plan)
-        print("Press Enter to move the real hardware.")
-        raw_input()
-        self.arm.execute(plan, wait=True)
+        # print("Press Enter to move the real hardware.")
+        # raw_input()
+        # self.arm.execute(plan, wait=True)
 
     def display_trajectory(self, plan):
         display_trajectory = moveit_msgs.msg.DisplayTrajectory()
@@ -149,7 +149,7 @@ class UR5(object):
         plan = self.arm.plan()
         self.execute_plan(plan)
 
-    def go_to_pose_goal(self, goal):
+    def go_to_pose(self, goal):
         self.arm.set_pose_target(goal)
         plan = self.arm.plan()
         self.execute_plan(plan)
@@ -190,64 +190,92 @@ class UR5(object):
     def close_gripper(self):
         self.gripper_goto(pos=0)
 
+    def get_current_pose(self):
+        return self.arm.get_current_pose().pose
 
-def get_problem():
-    robot = UR5()
-    # poses = robot.get_object_6dPose()
-    # print(poses)
-    robot.close_gripper()
-    robot.open_gripper()
-    exit()
+    def get_init_pose(self):
+        return self.init_pose
 
+
+def get_problem(robot):
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
     stream_pddl = None
     constant_map = {}
     stream_map = {}
 
     robot_name = 'ur5'
-    robot_conf = [0, 0, 1]
-    
-    obj1 = 'obj1'
-    obj2 = 'obj2'
-    obj1_pose = [1, 1, 0]
-    obj2_pose = [2, 2, 0]
-    free = [3, 3, 0]
-
+    robot_conf = robot.get_current_pose()
     init = [
         ('Robot', robot_name),
         ('AtConf', robot_name, robot_conf),
         ('Conf', robot_name, robot_conf),
         ('CanMove', robot_name),
         ('HandEmpty', robot_name),
-        ('Obj', obj1),
-        ('Pose', obj1, obj1_pose),
-        ('AtPose', obj1, obj1_pose),
-        ('Obj', obj2),
-        ('Pose', obj2, obj2_pose),
-        ('AtPose', obj2, obj2_pose),
-        ('FreePos', free),
+        ('FreePos', robot_conf)
     ]
 
+    objects = robot.get_object_6d_pose()
+    for obj_name in objects.keys():
+        init += [
+            ('Obj', obj_name), # Currently, we only care about translation
+            ('Pose', obj_name, objects[obj_name][0]),
+            ('AtPose', obj_name, objects[obj_name][0]),
+        ]
+
+    print('The robot detects the following objects: ')
+    obj_names = list(objects.keys())
+    for i, obj_name in enumerate(obj_names):
+        print('\t%d %s' % (i + 1, obj_name))
+    print('Which one do you want to grasp?')
+    idx = raw_input()
+    idx = int(idx)
+    while idx <= 0 or idx > len(obj_names):
+        print('Wrong input, try again: ')
+        idx = raw_input()
+        idx = int(idx)
+
     goal = [
-        # ('AtConf', robot_name, robot_conf),
-        ('AtPose', obj1, obj2_pose),
-        ('AtPose', obj2, obj1_pose),
+        ('AtConf', robot_name, robot_conf),
+        ('AtGrasp', robot_name, obj_names[idx]),
     ]
+
     goal = And(*goal)
 
     return domain_pddl, constant_map, stream_pddl, stream_map, init, goal
 
 
+def interpret_plan(robot, plan):
+    print('=================')
+    print(plan)
+    for i, (name, args) in enumerate(plan):
+        print(name)
+        if name == 'movetoobj':
+            current_pose = robot.get_current_pose()
+            current_pose.position = args[3]
+            robot.go_to_pose(current_pose)
+        elif name == 'movetofreepos':
+            current_pose = robot.get_current_pose()
+            current_pose.position = args[2].position
+            robot.go_to_pose(current_pose)
+        elif name == 'grasp':
+            robot.close_gripper()
+        elif name == 'place':
+            robot.open_gripper()
+
+
 def main(max_time = 180):
-    problem = get_problem()
+    robot = UR5()
+    problem = get_problem(robot)
     solution = solve_focused(problem, planner='ff-wastar2',
                              success_cost=INF, max_time=max_time, debug=False,
                              unit_efforts=True, effort_weight=1, search_sample_ratio=0)
-    print_solution(solution)
+    # print_solution(solution)
     plan, cost, evaluations = solution
     if plan is None:
         print('Unable to find a solution in under {} seconds'.format(max_time))
         return None
+    interpret_plan(robot, plan)
+    return True
 
 # def main():
     # parser = argparse.ArgumentParser()
