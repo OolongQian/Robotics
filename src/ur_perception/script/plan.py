@@ -2,8 +2,11 @@
 from __future__ import print_function
 
 import argparse
-
 import numpy as np
+import sys
+import copy
+import time
+
 from pddlstream.algorithms.focused import solve_focused
 from pddlstream.language.constants import And, print_solution
 from pddlstream.language.function import FunctionInfo
@@ -12,32 +15,25 @@ from pddlstream.utils import read, INF, get_file_path
 
 import rospy
 import tf
-from ur_perception.msg import ScenePoses
-import sys
-import copy
-import moveit_commander
-import moveit_msgs.msg
 from geometry_msgs.msg import PoseStamped
-from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
+
+import moveit_commander
+import moveit_msgs.msg
+
+from robotiq_85_msgs.msg import GripperCmd, GripperStat
+from math import pi
 from scene_poses_tf_listener import id2name
+from ur_perception.msg import ScenePoses
 
 
-class MoveGroupUR5(object):
+class UR5(object):
     def __init__(self):
-        super(MoveGroupUR5, self).__init__()
-        moveit_commander.roscpp_initialize(sys.argv)
-        rospy.init_node('move_group_ur5', anonymous=True)
-
+        super(UR5, self).__init__()
         # Instantiate a `RobotCommander`_ object. Provides information such as the robot's
         # kinematic model and the robot's current joint states
         robot = moveit_commander.RobotCommander()
-
-        # Instantiate a `PlanningSceneInterface`_ object.  This provides a remote interface
-        # for getting, setting, and updating the robot's internal understanding of the
-        # surrounding world:
-        scene = moveit_commander.PlanningSceneInterface()
 
         # Instantiate a `MoveGroupCommander`_ object.  This object is an interface
         # to a planning group (group of joints).  In this tutorial the group is the primary
@@ -45,8 +41,10 @@ class MoveGroupUR5(object):
         # If you are using a different robot, change this value to the name of your robot
         # arm planning group.
         # This interface can be used to plan and execute motions:
-        group_name = "manipulator"
-        move_group = moveit_commander.MoveGroupCommander(group_name)
+        arm_name = "manipulator"
+        arm = moveit_commander.MoveGroupCommander(arm_name)
+        gripper_name = "gripper"
+        gripper = moveit_commander.MoveGroupCommander(gripper_name)
 
         # Create a `DisplayTrajectory`_ ROS publisher which is used to display
         # trajectories in Rviz:
@@ -54,12 +52,11 @@ class MoveGroupUR5(object):
                                                        moveit_msgs.msg.DisplayTrajectory,
                                                        queue_size=20)
 
-        planning_frame = move_group.get_planning_frame()
-        print("============ Planning frame: %s" % planning_frame)
-
         # We can also print the name of the end-effector link for this group:
-        eef_link = move_group.get_end_effector_link()
-        print("============ End effector link: %s" % eef_link)
+        eef_link = arm.get_end_effector_link()
+        print("============ End effector link for arm: %s" % eef_link)
+        eef_link = gripper.get_end_effector_link()
+        print("============ End effector link for gripper: %s" % eef_link)
 
         # We can get a list of all the groups in the robot:
         group_names = robot.get_group_names()
@@ -71,19 +68,24 @@ class MoveGroupUR5(object):
         print(robot.get_current_state())
         print("")
 
+        # Some settings about the gripper operation
+        rospy.Subscriber("/gripper/stat", GripperStat, self._update_gripper_stat, queue_size=10)
+        self._gripper_pub = rospy.Publisher('/gripper/cmd', GripperCmd, queue_size=10)
+        self._gripper_stat = GripperStat()
+        self._gripper_cmd = GripperCmd()
+        self.open_gripper()
+
         self.robot = robot
-        self.scene = scene
-        self.move_group = move_group
+        self.arm = arm
+        self.gripper = gripper
         self.display_trajectory_publisher = display_trajectory_publisher
-        self.planning_frame = planning_frame
-        self.eef_link = eef_link
         self.group_names = group_names
 
         self.waiting = True
-        self.poses = {}
+        self.object_poses = {}
         self.tfListener = tf.TransformListener()
 
-    def subscribe_6dPose(self, scene_poses):
+    def subscribe_6d_pose(self, scene_poses):
         for i in range(len(scene_poses.poses)):
             pose = scene_poses.poses[i]
             class_id = scene_poses.class_ids[i]
@@ -91,63 +93,110 @@ class MoveGroupUR5(object):
             pos = pose.position
             ori = pose.orientation
 
-            self.poses[id2name[class_id + 1]] = (pos, ori)
+            self.object_poses[id2name[class_id + 1]] = (pos, ori)
 
         self.waiting = False
 
-    def get_object_6dPose(self):
+    def get_object_6d_ose(self):
         # Get each object's name and 6d pose based on Intel REALSENCE
-        # Return a dictionary {'name': (translation, rotation)}
+        # Return a dictionary in form of {'name': (translation, rotation)}
         # Rotation term is in formulation of quaternion
         print('Initializing...')
         # This initializing time depends on the speed of predicating 6d pose.
         while self.waiting:
-            rospy.Subscriber("/scene_poses", ScenePoses, self.subscribe_6dPose)
+            rospy.Subscriber("/scene_poses", ScenePoses, self.subscribe_6d_pose)
 
         # Convert the 6d pose w.r.t world.
-        for obj in self.poses.keys():
-            pos, ori = self.poses[obj]
+        for obj in self.object_poses.keys():
+            pos, ori = self.object_poses[obj]
             ps = PoseStamped()
             ps.header.frame_id = 'camera_link'
             ps.pose.position = pos
             ps.pose.orientation = ori
             target_pose = self.tfListener.transformPose("world", ps).pose
-            self.poses[obj] = (target_pose.position, target_pose.orientation)
+            self.object_poses[obj] = (target_pose.position, target_pose.orientation)
 
-        return self.poses
+        return self.object_poses
 
     def execute_plan(self, plan):
-        self.move_group.execute(plan, wait=True)
+        print("Press Enter to visualize the trajectory in RViz.")
+        raw_input()
+        self.display_trajectory(plan)
+        print("Press Enter to move the real hardware.")
+        raw_input()
+        self.arm.execute(plan, wait=True)
 
     def display_trajectory(self, plan):
         display_trajectory = moveit_msgs.msg.DisplayTrajectory()
         display_trajectory.trajectory_start = self.robot.get_current_state()
         display_trajectory.trajectory.append(plan)
-        # Publish
         self.display_trajectory_publisher.publish(display_trajectory)
 
-    def go_to_joint_state(self):
-        joint_goal = self.move_group.get_current_joint_values()
-        print(joint_goal)
-        joint_goal[0] = 0
+    def go_to_joint_state(self, goal):
+        self.arm.set_joint_value_target(goal)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
 
-        self.move_group.set_joint_value_target(joint_goal)
-        plan = self.move_group.plan()
+    def go_to_pose_goal_demo(self):
+        current_pose = self.arm.get_current_pose().pose
+        target_pose = copy.deepcopy(current_pose)
+        target_pose.position.z = 0.6
+        self.arm.set_pose_target(current_pose)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
 
-        return plan
+        self.arm.set_pose_target(target_pose)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
+
+    def go_to_pose_goal(self, goal):
+        self.arm.set_pose_target(goal)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
+
+    def _update_gripper_stat(self, stat):
+        self._gripper_stat = stat
+
+    def gripper_goto(self, pos=0.0, speed=1.0, force=1.0):
+        # The speed of running this code is faster than transporting gripper_commands in hardware
+        # Thus, we must define 3 states to distinguish each stages:
+        # 1) wait until gripper is ready, then publish the command.
+        # 2) wait until gripper's state is moving.
+        # 3) wait until gripper stops moving.
+        # Only after these three stages can we finish this function.
+        state = 0
+        while state < 3:
+            if state == 0:
+                ready = False
+                while not self._gripper_stat.is_ready:
+                    continue
+                self._gripper_cmd.position = pos
+                self._gripper_cmd.speed = speed
+                self._gripper_cmd.force = force
+                self._gripper_pub.publish(self._gripper_cmd)
+                state += 1
+            if state == 1:
+                while not self._gripper_stat.is_moving:
+                    continue
+                state += 1
+            if state == 2:
+                while self._gripper_stat.is_moving:
+                    continue
+                state += 1
+
+    def open_gripper(self):
+        self.gripper_goto(pos=0.085)
+
+    def close_gripper(self):
+        self.gripper_goto(pos=0)
 
 
 def get_problem():
-    move_group = MoveGroupUR5()
-    # poses = move_group.get_object_6dPose()
+    robot = UR5()
+    # poses = robot.get_object_6dPose()
     # print(poses)
-    plan = move_group.go_to_joint_state()
-    print('Press')
-    raw_input()
-    move_group.display_trajectory(plan)
-    raw_input()
-    move_group.execute_plan(plan)
-
+    robot.close_gripper()
+    robot.open_gripper()
     exit()
 
     domain_pddl = read(get_file_path(__file__, 'domain.pddl'))
@@ -191,8 +240,8 @@ def get_problem():
 
 def main(max_time = 180):
     problem = get_problem()
-    solution = solve_focused(problem, planner='ff-wastar2', \
-                             success_cost=INF, max_time=max_time, debug=False, \
+    solution = solve_focused(problem, planner='ff-wastar2',
+                             success_cost=INF, max_time=max_time, debug=False,
                              unit_efforts=True, effort_weight=1, search_sample_ratio=0)
     print_solution(solution)
     plan, cost, evaluations = solution
@@ -212,4 +261,7 @@ def main(max_time = 180):
 
 
 if __name__ == "__main__":
+    moveit_commander.roscpp_initialize(sys.argv)
+    rospy.init_node('planning_ur5', anonymous=True)
     main()
+
