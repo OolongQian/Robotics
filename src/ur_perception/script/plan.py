@@ -51,6 +51,12 @@ class UR5(object):
                                                        moveit_msgs.msg.DisplayTrajectory,
                                                        queue_size=20)
 
+        # Settings about the gripper
+        rospy.Subscriber("/gripper/stat", GripperStat, self._update_gripper_stat, queue_size=10)
+        self._gripper_pub = rospy.Publisher('/gripper/cmd', GripperCmd, queue_size=10)
+        self._gripper_stat = GripperStat()
+        self._gripper_cmd = GripperCmd()
+
         # We can also print the name of the end-effector link for this group:
         eef_link = arm.get_end_effector_link()
         print("============ End effector link for arm: %s" % eef_link)
@@ -66,13 +72,6 @@ class UR5(object):
         print("============ Printing robot state")
         print(robot.get_current_state())
         print("")
-
-        # Some settings about the gripper operation
-        rospy.Subscriber("/gripper/stat", GripperStat, self._update_gripper_stat, queue_size=10)
-        self._gripper_pub = rospy.Publisher('/gripper/cmd', GripperCmd, queue_size=10)
-        self._gripper_stat = GripperStat()
-        self._gripper_cmd = GripperCmd()
-        # self.open_gripper()
 
         self.robot = robot
         self.arm = arm
@@ -154,8 +153,21 @@ class UR5(object):
         plan = self.arm.plan()
         self.execute_plan(plan)
 
+    def go_to_position(self, goal):
+        self.arm.set_position_target(goal)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
+
     def _update_gripper_stat(self, stat):
         self._gripper_stat = stat
+
+    def gripper_self_check(self, pos=0.0):
+        while not self._gripper_stat.is_ready:
+            continue
+        if abs(self._gripper_stat.position - pos) < 0.002:
+            return False
+        else:
+            return True
 
     def gripper_goto(self, pos=0.0, speed=1.0, force=1.0):
         # The speed of running this code is faster than transporting gripper_commands in hardware
@@ -164,6 +176,9 @@ class UR5(object):
         # 2) wait until gripper's state is moving.
         # 3) wait until gripper stops moving.
         # Only after these three stages can we finish this function.
+        need_move = self.gripper_self_check(pos)
+        if not need_move:
+            return
         state = 0
         while state < 3:
             if state == 0:
@@ -186,9 +201,11 @@ class UR5(object):
 
     def open_gripper(self):
         self.gripper_goto(pos=0.085)
+        print(self._gripper_stat, '\n')
 
     def close_gripper(self):
         self.gripper_goto(pos=0)
+        print(self._gripper_stat, '\n')
 
     def get_current_pose(self):
         return self.arm.get_current_pose().pose
@@ -236,7 +253,7 @@ def get_problem(robot):
 
     goal = [
         ('AtConf', robot_name, robot_conf),
-        ('AtGrasp', robot_name, obj_names[idx]),
+        ('AtGrasp', robot_name, obj_names[idx - 1]),
     ]
 
     goal = And(*goal)
@@ -250,9 +267,8 @@ def interpret_plan(robot, plan):
     for i, (name, args) in enumerate(plan):
         print(name)
         if name == 'movetoobj':
-            current_pose = robot.get_current_pose()
-            current_pose.position = args[3]
-            robot.go_to_pose(current_pose)
+            goal = args[3]
+            robot.go_to_position([goal.x, goal.y, goal.z])
         elif name == 'movetofreepos':
             current_pose = robot.get_current_pose()
             current_pose.position = args[2].position
@@ -265,6 +281,7 @@ def interpret_plan(robot, plan):
 
 def main(max_time = 180):
     robot = UR5()
+    robot.open_gripper()
     problem = get_problem(robot)
     solution = solve_focused(problem, planner='ff-wastar2',
                              success_cost=INF, max_time=max_time, debug=False,

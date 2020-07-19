@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /PointCloud21
+        - /TF1
       Splitter Ratio: 0.5
     Tree Height: 236
   - Class: rviz/Selection
@@ -25,7 +27,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: PointCloud2
   - Class: rviz_visual_tools/RvizVisualToolsGui
     Name: RvizVisualToolsGui
 Preferences:
@@ -63,7 +65,7 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: ""
+      Color Transformer: RGB8
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -72,13 +74,13 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
-      Position Transformer: ""
+      Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Flat Squares
-      Topic: ""
+      Topic: /realsense/cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -371,6 +373,97 @@ Visualization Manager:
         Show Robot Visual: true
       Value: true
       Velocity_Scaling_Factor: 1
+    - Class: rviz/TF
+      Enabled: true
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        base:
+          Value: false
+        base_link:
+          Value: false
+        camera_base:
+          Value: true
+        camera_link:
+          Value: true
+        ee_link:
+          Value: false
+        forearm_link:
+          Value: false
+        gripper_base_link:
+          Value: false
+        gripper_finger1_finger_link:
+          Value: false
+        gripper_finger1_finger_tip_link:
+          Value: false
+        gripper_finger1_inner_knuckle_link:
+          Value: false
+        gripper_finger1_knuckle_link:
+          Value: false
+        gripper_finger2_finger_link:
+          Value: false
+        gripper_finger2_finger_tip_link:
+          Value: false
+        gripper_finger2_inner_knuckle_link:
+          Value: false
+        gripper_finger2_knuckle_link:
+          Value: false
+        robotiq_coupler:
+          Value: false
+        shoulder_link:
+          Value: false
+        tool0:
+          Value: false
+        tool0_controller:
+          Value: false
+        upper_arm_link:
+          Value: false
+        world:
+          Value: false
+        wrist_1_link:
+          Value: false
+        wrist_2_link:
+          Value: false
+        wrist_3_link:
+          Value: false
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        world:
+          base_link:
+            base:
+              tool0_controller:
+                {}
+            shoulder_link:
+              upper_arm_link:
+                forearm_link:
+                  wrist_1_link:
+                    wrist_2_link:
+                      wrist_3_link:
+                        ee_link:
+                          camera_link:
+                            camera_base:
+                              {}
+                        tool0:
+                          robotiq_coupler:
+                            gripper_base_link:
+                              gripper_finger1_inner_knuckle_link:
+                                gripper_finger1_finger_tip_link:
+                                  {}
+                              gripper_finger1_knuckle_link:
+                                gripper_finger1_finger_link:
+                                  {}
+                              gripper_finger2_inner_knuckle_link:
+                                gripper_finger2_finger_tip_link:
+                                  {}
+                              gripper_finger2_knuckle_link:
+                                gripper_finger2_finger_link:
+                                  {}
+      Update Interval: 0
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -399,7 +492,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 4.644041061401367
+      Distance: 1.5533196926116943
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -414,10 +507,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7703980207443237
+      Pitch: 0.46539801359176636
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 1.185397744178772
+      Yaw: 1.3504024744033813
     Saved: ~
 Window Geometry:
   Displays:
