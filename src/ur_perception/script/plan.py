@@ -121,9 +121,9 @@ class UR5(object):
         print("Press Enter to visualize the trajectory in RViz.")
         raw_input()
         self.display_trajectory(plan)
-        # print("Press Enter to move the real hardware.")
-        # raw_input()
-        # self.arm.execute(plan, wait=True)
+        print("Press Enter to move the real hardware.")
+        raw_input()
+        self.arm.execute(plan, wait=True)
 
     def display_trajectory(self, plan):
         display_trajectory = moveit_msgs.msg.DisplayTrajectory()
@@ -138,13 +138,23 @@ class UR5(object):
 
     def go_to_pose_goal_demo(self):
         current_pose = self.arm.get_current_pose().pose
-        target_pose = copy.deepcopy(current_pose)
-        target_pose.position.z = 0.6
-        self.arm.set_pose_target(current_pose)
+        stage_1_pose = copy.deepcopy(current_pose)
+        stage_1_pose.position.z = 0.5
+        stage_2_pose = copy.deepcopy(current_pose)
+        stage_2_pose.position.z = 0.6
+        self.arm.set_pose_target(stage_1_pose)
         plan = self.arm.plan()
         self.execute_plan(plan)
 
-        self.arm.set_pose_target(target_pose)
+        self.arm.set_pose_target(stage_2_pose)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
+
+        self.arm.set_pose_target(stage_1_pose)
+        plan = self.arm.plan()
+        self.execute_plan(plan)
+
+        self.arm.set_pose_target(current_pose)
         plan = self.arm.plan()
         self.execute_plan(plan)
 
@@ -282,6 +292,10 @@ def interpret_plan(robot, plan):
 def main(max_time = 180):
     robot = UR5()
     robot.open_gripper()
+    robot.close_gripper()
+    robot.open_gripper()
+    robot.go_to_pose_goal_demo()
+    exit()
     problem = get_problem(robot)
     solution = solve_focused(problem, planner='ff-wastar2',
                              success_cost=INF, max_time=max_time, debug=False,

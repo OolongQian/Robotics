@@ -189,7 +189,7 @@ for now, image_name in enumerate(images):
         for inst in range(bboxes.shape[0]):
             try:
                 bbox = bboxes[inst, :]
-                if bbox[4] < 0.5:
+                if bbox[4] < 0.5: # Confidence Threshold
                     continue
                 segm = segms[inst]
 
